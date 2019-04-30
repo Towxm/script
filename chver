@@ -1,0 +1,131 @@
+#!/usr/local/bin/ruby
+
+require 'tempfile'
+require 'fileutils'
+
+#参数预处理
+def pre_process_arg(argv)
+    $arg0 = argv[0]
+    $arg1 = argv[1]
+    $arg2 = argv[2]
+
+    if argv.count == 0
+    	puts "usage:"
+        puts "  chver AFNetwork 3.0"
+        puts "  chver version"
+        return
+    end
+
+    if $arg0 == "--version" || $arg0 == "-v" || $arg0 == "version"
+        puts "1.0"
+        return
+    end
+
+    if !$arg1
+    	puts "warning: invlid arguments"
+    	return
+    end
+
+    confirm_process()
+end
+
+#二次确认，防止误操作
+def confirm_process
+	puts "warning: current directory is -> \"#{Dir.pwd}\""
+	print "are you sure it's ok? (y/n):"
+	words = STDIN.gets.chomp
+	if words == "y" || words == "yes" || words == "YES"
+		scan_directory()
+	else
+		puts "exit"
+	end
+	
+end
+
+#开始扫描当前目录,Podfile/podspec/Cartfile
+def scan_directory()
+	puts "scaning:>"
+	Dir.glob(["**/Podfile", "**/*.podspec", "**/Cartfile"]).each do |path|
+		if !path.include?("Carthage/Checkouts")
+			update_lib_version(path)
+			puts "     #{path} completed"
+		end
+	end
+	puts "end"
+end
+
+#开始处理单个文本
+def update_lib_version(path)
+	#创建临时缓存文件，写入完毕后替换掉源文件
+	temp_file = Tempfile.new("temp_file")
+	File.open(path) do |io|
+		if path.include?("Podfile")		
+			while line = io.gets
+				temp_file.puts update_podfile_line(line, $arg0, $arg1)
+			end
+		elsif path.include?("podspec")
+			while line = io.gets
+				temp_file.puts update_podspec_line(line, $arg0, $arg1)
+			end
+		else
+			while line = io.gets
+				temp_file.puts update_cartfile_line(line, $arg0, $arg1)
+			end
+		end
+	end
+	temp_file.close
+	FileUtils.mv(temp_file.path, path)
+end
+
+# 对podfile进行处理
+# [0-9]+\.[0-9]+(\.[0-9]+)?
+def update_podfile_line(line, lib_name, lib_version)
+	downcase_line = line.downcase
+	downcase_lib_name = "\'" + lib_name.downcase + "\'"
+	if downcase_line.include?("pod") && downcase_line.include?(downcase_lib_name)
+		return line.sub(/[0-9]+\.[0-9]+(\.[0-9]+)?/, lib_version)
+	end
+	return line
+end
+
+#对podspec进行处理
+def update_podspec_line(line, lib_name, lib_version)
+	downcase_line = line.downcase
+	downcase_lib_name = "\'" + lib_name.downcase + "\'"
+	if downcase_line.include?(".dependency") && downcase_line.include?(downcase_lib_name)
+		return line.sub(/[0-9]+\.[0-9]+(\.[0-9]+)?/, lib_version)
+	end
+	return line
+end
+
+#对Cartfile进行处理
+def update_cartfile_line(line, lib_name, lib_version)
+	downcase_line = line.downcase
+	downcase_lib_name = lib_name.downcase + "\""
+	if downcase_line.include?("github") && downcase_line.include?(downcase_lib_name)
+		return line.sub(/[0-9]+\.[0-9]+(\.[0-9]+)?/, lib_version)
+	end
+	return line
+end
+
+
+pre_process_arg(ARGV)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
